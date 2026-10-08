@@ -1,0 +1,458 @@
+// QuizFlow data model.
+// Source of truth: docs/source-of-truth.md ("Data model invariants") and
+// docs/diagrams.md ("Core data model"). Keep this file aligned with them.
+//
+// Deletion policy: records that carry classroom history (classes, enrollments,
+// quizzes, versions, attempts, responses, events, grade revisions, audit events)
+// use onDelete: Restrict so history can never be removed by a cascade.
+// Archive or deactivate instead. Only short-lived credentials cascade.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  TEACHER_ADMIN
+  STUDENT
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+enum AcademicLevel {
+  SHS
+  COLLEGE
+}
+
+enum ClassStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum EnrollmentSource {
+  MANUAL
+  QR_INVITE
+}
+
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  MULTIPLE_SELECT
+  TRUE_FALSE
+  SHORT_ANSWER
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  NEEDS_REVIEW
+  GRADED
+  REOPENED
+}
+
+enum ResponseGradingState {
+  CORRECT
+  INCORRECT
+  NEEDS_REVIEW
+  OVERRIDDEN
+}
+
+enum IntegrityEventType {
+  PAGE_HIDDEN
+  PAGE_VISIBLE
+  WINDOW_BLUR
+  WINDOW_FOCUS
+  FULLSCREEN_EXIT
+  COPY
+  CUT
+  PASTE
+  CONTEXT_MENU
+  NETWORK_OFFLINE
+  NETWORK_ONLINE
+  CONCURRENT_SESSION
+  SAVE_CONFLICT
+  SUBMIT_RETRY
+}
+
+enum IntegritySeverity {
+  INFO
+  NOTICE
+  REVIEW
+}
+
+// ---------------------------------------------------------------------------
+// Accounts
+// ---------------------------------------------------------------------------
+
+/// Credentials and sessions belong to the authentication provider, which is
+/// not selected yet. Do not add password or session columns until it is.
+model User {
+  id              String          @id @default(uuid(7)) @db.Uuid
+  /// Address as entered, for display.
+  email           String
+  /// Trimmed, lower-cased address. Uniqueness is enforced here.
+  normalizedEmail String          @unique
+  displayName     String
+  role            UserRole
+  themePreference ThemePreference @default(SYSTEM)
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+
+  passwordResetTokens PasswordResetToken[]
+  ownedClasses        Class[]              @relation("ClassOwner")
+  enrollments         Enrollment[]
+  createdInvites      RegistrationInvite[] @relation("InviteCreator")
+  createdQuizzes      Quiz[]               @relation("QuizCreator")
+  publishedVersions   QuizVersion[]        @relation("VersionPublisher")
+  gradeRevisions      GradeRevision[]
+  auditEvents         AuditEvent[]
+  idempotencyRecords  IdempotencyRecord[]
+
+  @@map("users")
+}
+
+/// Only the hash of a reset token is stored. The raw token is never persisted.
+model PasswordResetToken {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Classes and enrollment
+// ---------------------------------------------------------------------------
+
+model Class {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  teacherAdminId String        @db.Uuid
+  name           String
+  subject        String
+  academicLevel  AcademicLevel
+  schoolYear     String
+  term           String
+  status         ClassStatus   @default(ACTIVE)
+  archivedAt     DateTime?     @db.Timestamptz(3)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+
+  teacherAdmin User                 @relation("ClassOwner", fields: [teacherAdminId], references: [id], onDelete: Restrict)
+  enrollments  Enrollment[]
+  invites      RegistrationInvite[]
+  quizzes      Quiz[]
+  auditEvents  AuditEvent[]
+
+  @@index([teacherAdminId, status])
+  @@map("classes")
+}
+
+/// One row per student/class pair. Deactivate instead of deleting once the
+/// enrollment has attempt history.
+model Enrollment {
+  id            String           @id @default(uuid(7)) @db.Uuid
+  classId       String           @db.Uuid
+  studentId     String           @db.Uuid
+  status        EnrollmentStatus @default(ACTIVE)
+  source        EnrollmentSource
+  /// Invite that created or restored this enrollment, when source is QR_INVITE.
+  inviteId      String?          @db.Uuid
+  enrolledAt    DateTime         @default(now()) @db.Timestamptz(3)
+  deactivatedAt DateTime?        @db.Timestamptz(3)
+  updatedAt     DateTime         @updatedAt @db.Timestamptz(3)
+
+  class    Class               @relation(fields: [classId], references: [id], onDelete: Restrict)
+  student  User                @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  invite   RegistrationInvite? @relation(fields: [inviteId], references: [id], onDelete: SetNull)
+  attempts Attempt[]
+
+  @@unique([classId, studentId])
+  @@index([studentId, status])
+  @@index([classId, status])
+  @@map("enrollments")
+}
+
+/// QR registration invite. Only the token hash is stored.
+model RegistrationInvite {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  classId     String    @db.Uuid
+  createdById String    @db.Uuid
+  tokenHash   String    @unique
+  expiresAt   DateTime  @db.Timestamptz(3)
+  /// Null means no usage limit.
+  maxUses     Int?
+  useCount    Int       @default(0)
+  revokedAt   DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  class       Class        @relation(fields: [classId], references: [id], onDelete: Restrict)
+  createdBy   User         @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  enrollments Enrollment[]
+
+  @@index([classId, expiresAt])
+  @@map("registration_invites")
+}
+
+// ---------------------------------------------------------------------------
+// Quiz authoring and publication
+// ---------------------------------------------------------------------------
+
+/// Editable quiz. Draft settings and questions are stored as validated JSON
+/// (see docs/api.md QuizSettings and UpsertQuestionRequest). Publishing copies
+/// them into an immutable QuizVersion with relational question snapshots.
+model Quiz {
+  id             String     @id @default(uuid(7)) @db.Uuid
+  classId        String     @db.Uuid
+  createdById    String     @db.Uuid
+  title          String
+  instructions   String     @default("")
+  status         QuizStatus @default(DRAFT)
+  draftSettings  Json
+  draftQuestions Json       @default("[]")
+  /// Incremented on every draft write for optimistic concurrency.
+  draftRevision  Int        @default(0)
+  closedAt       DateTime?  @db.Timestamptz(3)
+  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime   @updatedAt @db.Timestamptz(3)
+
+  class     Class         @relation(fields: [classId], references: [id], onDelete: Restrict)
+  createdBy User          @relation("QuizCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  versions  QuizVersion[]
+
+  @@index([classId, status])
+  @@map("quizzes")
+}
+
+/// Immutable published version used by new attempts.
+model QuizVersion {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  quizId           String   @db.Uuid
+  versionNumber    Int
+  title            String
+  instructions     String
+  settingsSnapshot Json
+  totalPoints      Decimal  @db.Decimal(8, 2)
+  publishedById    String   @db.Uuid
+  publishedAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  quiz        Quiz               @relation(fields: [quizId], references: [id], onDelete: Restrict)
+  publishedBy User               @relation("VersionPublisher", fields: [publishedById], references: [id], onDelete: Restrict)
+  questions   QuestionSnapshot[]
+  attempts    Attempt[]
+
+  @@unique([quizId, versionNumber])
+  @@map("quiz_versions")
+}
+
+model QuestionSnapshot {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  quizVersionId String       @db.Uuid
+  type          QuestionType
+  prompt        String
+  points        Decimal      @db.Decimal(8, 2)
+  required      Boolean      @default(true)
+  position      Int
+  /// TRUE_FALSE answer key or SHORT_ANSWER rule. Never sent to students.
+  gradingRule   Json?
+
+  quizVersion QuizVersion      @relation(fields: [quizVersionId], references: [id], onDelete: Restrict)
+  options     OptionSnapshot[]
+  responses   Response[]
+
+  @@unique([quizVersionId, position])
+  @@map("question_snapshots")
+}
+
+model OptionSnapshot {
+  id                 String  @id @default(uuid(7)) @db.Uuid
+  questionSnapshotId String  @db.Uuid
+  label              String
+  isCorrect          Boolean
+  position           Int
+
+  question QuestionSnapshot @relation(fields: [questionSnapshotId], references: [id], onDelete: Restrict)
+
+  @@unique([questionSnapshotId, position])
+  @@map("option_snapshots")
+}
+
+// ---------------------------------------------------------------------------
+// Attempts
+// ---------------------------------------------------------------------------
+
+model Attempt {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  enrollmentId      String        @db.Uuid
+  quizVersionId     String        @db.Uuid
+  attemptNumber     Int
+  status            AttemptStatus @default(IN_PROGRESS)
+  /// Optimistic-concurrency version for answer writes (baseVersion).
+  version           Int           @default(0)
+  /// Per-attempt question and option order after shuffling.
+  presentationOrder Json
+  startedAt         DateTime      @default(now()) @db.Timestamptz(3)
+  /// Earliest of quiz close and startedAt + time limit, plus explicit extensions.
+  deadlineAt        DateTime?     @db.Timestamptz(3)
+  submittedAt       DateTime?     @db.Timestamptz(3)
+  gradedAt          DateTime?     @db.Timestamptz(3)
+  earnedPoints      Decimal?      @db.Decimal(8, 2)
+  possiblePoints    Decimal       @db.Decimal(8, 2)
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+
+  enrollment      Enrollment        @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  quizVersion     QuizVersion       @relation(fields: [quizVersionId], references: [id], onDelete: Restrict)
+  responses       Response[]
+  integrityEvents IntegrityEvent[]
+  mutations       AttemptMutation[]
+
+  @@unique([enrollmentId, quizVersionId, attemptNumber])
+  @@index([quizVersionId, status])
+  @@map("attempts")
+}
+
+model Response {
+  id                 String                @id @default(uuid(7)) @db.Uuid
+  attemptId          String                @db.Uuid
+  questionSnapshotId String                @db.Uuid
+  /// AnswerValue union from docs/api.md.
+  answerValue        Json
+  /// Null until the attempt is graded.
+  gradingState       ResponseGradingState?
+  earnedPoints       Decimal?              @db.Decimal(8, 2)
+  possiblePoints     Decimal               @db.Decimal(8, 2)
+  feedback           String?
+  createdAt          DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime              @updatedAt @db.Timestamptz(3)
+
+  attempt        Attempt          @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  question       QuestionSnapshot @relation(fields: [questionSnapshotId], references: [id], onDelete: Restrict)
+  gradeRevisions GradeRevision[]
+
+  @@unique([attemptId, questionSnapshotId])
+  @@map("responses")
+}
+
+/// Deduplicates autosave batches by client mutation ID within an attempt.
+model AttemptMutation {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  attemptId        String   @db.Uuid
+  clientMutationId String
+  resultingVersion Int
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, clientMutationId])
+  @@map("attempt_mutations")
+}
+
+// ---------------------------------------------------------------------------
+// Integrity monitoring
+// ---------------------------------------------------------------------------
+
+/// Append-only. Events never change a score.
+model IntegrityEvent {
+  id            String             @id @default(uuid(7)) @db.Uuid
+  attemptId     String             @db.Uuid
+  clientEventId String
+  sequence      Int
+  type          IntegrityEventType
+  /// Server-assigned presentation cue. Has no scoring effect.
+  severity      IntegritySeverity
+  occurredAt    DateTime           @db.Timestamptz(3)
+  receivedAt    DateTime           @default(now()) @db.Timestamptz(3)
+  /// Allowlisted keys only (docs/api.md IntegrityEventInput.metadata).
+  metadata      Json?
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, clientEventId])
+  @@index([attemptId, occurredAt])
+  @@map("integrity_events")
+}
+
+// ---------------------------------------------------------------------------
+// Grading and audit
+// ---------------------------------------------------------------------------
+
+model GradeRevision {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  responseId     String   @db.Uuid
+  teacherAdminId String   @db.Uuid
+  previousPoints Decimal? @db.Decimal(8, 2)
+  newPoints      Decimal  @db.Decimal(8, 2)
+  reason         String
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  response     Response @relation(fields: [responseId], references: [id], onDelete: Restrict)
+  teacherAdmin User     @relation(fields: [teacherAdminId], references: [id], onDelete: Restrict)
+
+  @@index([responseId, createdAt])
+  @@map("grade_revisions")
+}
+
+/// Sensitive teacher actions. Never stores raw tokens or secret values.
+model AuditEvent {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  classId    String   @db.Uuid
+  actorId    String   @db.Uuid
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  class Class @relation(fields: [classId], references: [id], onDelete: Restrict)
+  actor User  @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([classId, createdAt])
+  @@map("audit_events")
+}
+
+/// Stored result for Idempotency-Key requests (docs/api.md "Idempotency").
+model IdempotencyRecord {
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  actorId            String   @db.Uuid
+  scope              String
+  key                String
+  requestFingerprint String
+  responseStatus     Int
+  responseBody       Json
+  createdAt          DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt          DateTime @db.Timestamptz(3)
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([actorId, scope, key])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}

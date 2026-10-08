@@ -1,0 +1,232 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * QuizFlow design tokens — minimalist pink glassmorphism.
+ * Neutral, slightly cool canvas; one pink scale for accent, status and focus;
+ * semantic success / warning / info / destructive colors.
+ * Text pairs meet WCAG 2.2 AA (4.5:1) in both themes.
+ */
+:root {
+  --radius: 0.625rem;
+
+  --background: #f6f5f8;
+  --foreground: #1c1622;
+  --card: #ffffff;
+  --card-foreground: #1c1622;
+  --popover: #ffffff;
+  --popover-foreground: #1c1622;
+
+  --primary: #b8175a;
+  --primary-foreground: #ffffff;
+  --secondary: #efecf2;
+  --secondary-foreground: #1c1622;
+  --muted: #efecf2;
+  --muted-foreground: #5e5666;
+  --accent: #fce7f1;
+  --accent-foreground: #6b0f37;
+
+  --destructive: #b42318;
+  --success: #127a4b;
+  --warning: #8a5300;
+  --info: #1d5fa8;
+
+  --border: #e2dde6;
+  --input: #d3ccd9;
+  --ring: #b8175a;
+
+  /* Glass surfaces: navigation, summaries, dialogs. */
+  --glass: rgb(255 255 255 / 0.64);
+  --glass-strong: rgb(255 255 255 / 0.82);
+  --glass-border: rgb(255 255 255 / 0.8);
+  --glass-edge: rgb(28 22 34 / 0.08);
+  --glass-blur: 18px;
+  --glass-shadow:
+    0 1px 0 rgb(255 255 255 / 0.7) inset,
+    0 12px 32px -16px rgb(107 15 55 / 0.18);
+
+  /* Atmosphere behind glass. Static; never animated. */
+  --aura-1: rgb(244 114 182 / 0.22);
+  --aura-2: rgb(251 207 232 / 0.55);
+}
+
+.dark {
+  --background: #131016;
+  --foreground: #f3eef5;
+  --card: #1c1720;
+  --card-foreground: #f3eef5;
+  --popover: #1c1720;
+  --popover-foreground: #f3eef5;
+
+  --primary: #f27ab0;
+  --primary-foreground: #2b0717;
+  --secondary: #241e29;
+  --secondary-foreground: #f3eef5;
+  --muted: #241e29;
+  --muted-foreground: #aba2b3;
+  --accent: #3a1a2b;
+  --accent-foreground: #fbd3e6;
+
+  --destructive: #f87171;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --info: #7ab8ff;
+
+  --border: #2e2734;
+  --input: #3d3443;
+  --ring: #f27ab0;
+
+  --glass: rgb(32 26 37 / 0.6);
+  --glass-strong: rgb(32 26 37 / 0.82);
+  --glass-border: rgb(255 255 255 / 0.08);
+  --glass-edge: rgb(0 0 0 / 0.4);
+  --glass-shadow:
+    0 1px 0 rgb(255 255 255 / 0.05) inset, 0 16px 40px -20px rgb(0 0 0 / 0.7);
+
+  --aura-1: rgb(242 122 176 / 0.16);
+  --aura-2: rgb(120 40 90 / 0.28);
+}
+
+@theme inline {
+  --font-sans: var(--font-atkinson);
+  --font-display: var(--font-bricolage);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+  --color-glass-border: var(--glass-border);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 10px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: "kern", "liga";
+    line-height: 1.55;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-bricolage);
+    text-wrap: balance;
+    letter-spacing: -0.015em;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Translucent surface. Use for chrome and summaries, not dense content. */
+  .glass {
+    background-color: var(--glass);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  }
+
+  .glass-strong {
+    background-color: var(--glass-strong);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  }
+
+  /* Opaque surface for rosters, editors and tables. */
+  .surface {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+  }
+
+  /* Page atmosphere: two soft static pink fields behind glass. */
+  .aura {
+    background-image:
+      radial-gradient(40rem 28rem at 12% -6%, var(--aura-2), transparent 70%),
+      radial-gradient(36rem 26rem at 100% 8%, var(--aura-1), transparent 65%);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+}
+
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .glass,
+  .glass-strong {
+    background-color: var(--card);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-strong {
+    background-color: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .aura {
+    background-image: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Show React Bits text immediately, before hydration swaps in static text. */
+  [data-motion="blur-text"] > span {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+}

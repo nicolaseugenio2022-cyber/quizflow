@@ -1,0 +1,128 @@
+# Continuous integration for QuizFlow. CI only: no deployment steps until a
+# hosting provider is selected (docs/source-of-truth.md, "Open decisions").
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, test and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        # Isolated, throwaway database for this job only.
+        image: postgres:18
+        env:
+          POSTGRES_DB: quizflow_ci
+          POSTGRES_USER: quizflow_ci
+          POSTGRES_PASSWORD: quizflow_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quizflow_ci -d quizflow_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      CI: true
+      NEXT_TELEMETRY_DISABLED: 1
+      NODE_ENV: test
+      # CI-only test accounts for the development sign-in adapter used by the
+      # E2E suite (the Playwright web server runs `next dev`). Not real users.
+      TEACHER_USERNAME: teacher@ci.quizflow.invalid
+      TEACHER_PASSWORD: ci-teacher-password
+      STUDENT_USERNAME: student@ci.quizflow.invalid
+      STUDENT_PASSWORD: ci-student-password
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Configure CI database connection
+        # Built here and masked so the full connection string never appears
+        # in logs. Points only at the service container above.
+        run: |
+          url="postgresql://quizflow_ci:quizflow_ci_only@localhost:5432/quizflow_ci?schema=public"
+          echo "::add-mask::quizflow_ci_only"
+          echo "::add-mask::$url"
+          echo "DATABASE_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check Prisma schema formatting
+        run: npm run db:format:check
+
+      - name: Validate Prisma schema
+        run: npm run db:validate
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Apply committed migrations
+        run: npx prisma migrate deploy
+
+      - name: Check database connection
+        run: npm run db:check
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        # Playwright starts the app through its configured webServer.
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload Playwright test results
+        # Traces, screenshots and videos from failed tests.
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
