@@ -11,8 +11,9 @@ npm only (`package-lock.json`). Requires PostgreSQL running and `DATABASE_URL` i
 - `npm run dev`: `predev` runs Prisma generate, `db:check` and `prisma migrate deploy`, then starts Next.js at http://localhost:3000.
 - `npm run lint` · `npm run typecheck` (runs `next typegen` first; plain `tsc` fails on `LayoutProps` without it) · `npm run format:check` · `npm run build`
 - `npm test`: Vitest, `tests/unit`. One file: `npx vitest run tests/unit/roles.test.ts`.
-- `npm run test:e2e`: Playwright, `tests/e2e`, desktop and mobile Chromium; starts `npm run dev` itself unless a server is already up. One test: `npx playwright test tests/e2e/theme.spec.ts --project=desktop-chromium -g "persist"`.
+- `npm run test:e2e`: Playwright, `tests/e2e`, desktop and mobile Chromium; starts `npm run dev` itself unless a server is already up. One test: `npx playwright test tests/e2e/theme.spec.ts --project=desktop-chromium -g "persist"`. The sign-in specs skip unless `TEACHER_*` and `STUDENT_*` are set.
 - Schema changes: edit `prisma/schema.prisma`, then `npm run db:migrate -- --name <change>`. Never use `migrate reset` or `db push --force-reset`.
+- CI (`.github/workflows/ci.yml`) runs these same scripts in order, including `format:check` and `db:format:check`, against a throwaway `postgres:18` with CI-only accounts. Run `npm run format` before committing. `.gitattributes` forces LF line endings.
 
 ## Documentation is the spec
 
@@ -45,6 +46,7 @@ All requirements live in `docs/`. When documents disagree, this precedence wins:
 - Client components that branch on browser-only state (reduced motion, theme) must match server output on the first render. Use the `useSyncExternalStore` "hydrated" pattern, as in `blur-text.tsx` and `theme-toggle.tsx`.
 - npm 12 blocks install scripts unless they are listed in `allowScripts` (package.json). Re-approve after bumping `prisma`, `@prisma/engines` or `esbuild`.
 - Playwright is pinned to 1.63.0 until the 1.64 Chromium build is downloadable.
+- `.env` belongs in the repo root. `.env.example` is a committed template, so put placeholders there, never real values. Nothing in the code reads `.env.example`.
 - Add React Bits components only through `npx shadcn@latest add @react-bits/<Name>-TS-TW`. Then move them to `src/components/react-bits/`, keep the license header, and add reduced-motion handling.
 
 ## UI direction
