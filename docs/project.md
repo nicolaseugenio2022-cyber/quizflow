@@ -86,6 +86,19 @@ Primary jobs:
 | Recovery | Resume the latest valid attempt and reconcile queued changes |
 | Result | Show status, score, and allowed answer review after release |
 
+### Primary navigation
+
+Each signed-in role has a fixed set of top-level tabs. Every tab opens a real page; detail pages such as class overview, quiz builder, attempt review, and result open from within these areas.
+
+| Role | Tabs, in order |
+| --- | --- |
+| Teacher/Admin | Dashboard (`/teacher/dashboard`), Classes (`/teacher/classes`), Students (`/teacher/students`), Quizzes (`/teacher/quizzes`), Results (`/teacher/results`), Integrity (`/teacher/integrity`) |
+| Student | Dashboard (`/student/dashboard`), Classes (`/student/classes`), Quizzes (`/student/quizzes`), Results (`/student/results`) |
+
+Teacher/admin Students gathers rosters, manual enrollment, and enrollment status; Quizzes gathers authoring, Word import, scheduling, and publication; Results gathers submissions, grading, overrides, and result release; Integrity gathers attempt-event summaries and review timelines. Student Quizzes lists upcoming, available, in-progress, and completed quizzes; student Results lists released grades and permitted answer review. A role never sees the other role's tabs.
+
+Until a tab's delivery phase ships, its page shows a shared UI preview state that lists the planned capabilities without sample data, and every signed-in screen shows a preview-mode notice beneath the navigation. Remove the notice once the initial release is complete.
+
 ## Main user flows
 
 ### User logs in
@@ -326,6 +339,10 @@ src/
           _components/
           page.tsx
         classes/
+        students/
+        quizzes/
+        results/
+        integrity/
       layout.tsx
     (student)/
       student/
@@ -333,6 +350,8 @@ src/
           _components/
           page.tsx
         classes/
+        quizzes/
+        results/
       layout.tsx
     api/
       v1/
@@ -341,6 +360,7 @@ src/
   components/
     ui/
     layout/
+    preview/
     theme/
   config/
   hooks/

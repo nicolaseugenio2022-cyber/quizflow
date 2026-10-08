@@ -11,7 +11,7 @@ Phase 1 (Foundation) is in place:
 - Next.js 16 App Router with strict TypeScript, Tailwind CSS 4 and shadcn/ui (New York style).
 - Minimalist pink glassmorphism design tokens with light, dark and system themes (no theme flash).
 - Landing page, sign-in, forgot-password and reset-password screens.
-- Teacher (`/teacher/...`) and student (`/student/...`) areas behind a server-side role gate.
+- Teacher (`/teacher/...`) and student (`/student/...`) areas behind a server-side role gate, with every planned tab in place: Dashboard, Classes, Students, Quizzes, Results and Integrity for teachers; Dashboard, Classes, Quizzes and Results for students. Unfinished pages show a "UI preview" state, and a preview-mode notice sits under the navigation.
 - PostgreSQL schema for all core entities, managed with Prisma 7 and an applied `init` migration.
 - Shared validation, API response and error types matching `docs/api.md`.
 - Unit tests (Vitest) and end-to-end tests (Playwright, desktop and mobile Chromium).
@@ -125,14 +125,15 @@ src/
   components/
     ui/                  shadcn/ui primitives
     react-bits/          React Bits components (official registry, adapted)
-    layout/ theme/       app shell, navigation, theme provider and toggle
+    layout/ theme/       app shell, role navigation, theme provider and toggle
+    preview/             preview-mode notice and the shared "UI preview" page state
   lib/
     auth/                adapter boundary, role gate, dev test accounts
     db/                  Prisma client (server-only, reused across dev reloads)
     env/                 server environment validation (never sent to the browser)
     permissions/         roles (TEACHER_ADMIN, STUDENT) and access decisions
     validation/ api/     Zod schemas, response envelopes, error codes
-  navigation/            role navigation config
+  navigation/            role tabs (order, routes, descriptions) and their icons
   proxy.ts               sends visitors without a session to /login
 prisma/                  schema.prisma and migrations
 scripts/check-db.ts      database check used by `npm run dev` and CI

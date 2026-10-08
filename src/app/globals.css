@@ -156,6 +156,11 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+
+  /* Keep focused content clear of the sticky signed-in header. */
+  html:has([data-app-shell]) {
+    scroll-padding-top: 8rem;
+  }
 }
 
 @layer components {

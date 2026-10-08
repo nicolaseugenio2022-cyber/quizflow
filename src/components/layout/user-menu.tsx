@@ -24,10 +24,12 @@ function initials(name: string) {
 export function UserMenu({
   displayName,
   roleLabel,
+  isTestAccount,
   signOutAction,
 }: {
   displayName: string;
   roleLabel: string;
+  isTestAccount: boolean;
   signOutAction: () => Promise<void>;
 }) {
   return (
@@ -51,7 +53,7 @@ export function UserMenu({
         <DropdownMenuLabel className="font-normal">
           <span className="block font-medium">{displayName}</span>
           <span className="block text-xs text-muted-foreground">
-            {roleLabel}
+            {isTestAccount ? `${roleLabel}, test account` : roleLabel}
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

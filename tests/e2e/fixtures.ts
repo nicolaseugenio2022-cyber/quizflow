@@ -35,3 +35,31 @@ export async function chooseTheme(
   await page.getByRole("button", { name: "Theme" }).click();
   await page.getByRole("menuitemradio", { name: label }).click();
 }
+
+export type TestAccountRole = "teacher" | "student";
+
+/** Development test account from .env, or undefined when not configured. */
+export function testAccount(role: TestAccountRole) {
+  const prefix = role === "teacher" ? "TEACHER" : "STUDENT";
+  const email = process.env[`${prefix}_USERNAME`];
+  const password = process.env[`${prefix}_PASSWORD`];
+  return email && password ? { email, password } : undefined;
+}
+
+/** Signs in through the login form and waits for the role dashboard. */
+export async function signIn(
+  page: import("@playwright/test").Page,
+  role: TestAccountRole,
+) {
+  const account = testAccount(role);
+  if (!account) throw new Error(`No ${role} test account configured.`);
+  // Wait for hydration so the click runs the form's action, not a plain POST.
+  await page.goto("/login", { waitUntil: "networkidle" });
+  await field(page, "Email").fill(account.email);
+  await field(page, "Password").fill(account.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  // The first sign-in compiles the role area in dev, which can take a while.
+  await expect(page).toHaveURL(new RegExp(`/${role}/dashboard$`), {
+    timeout: 30_000,
+  });
+}

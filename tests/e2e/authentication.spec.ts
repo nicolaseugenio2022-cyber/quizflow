@@ -169,7 +169,10 @@ test.describe("Development test accounts", () => {
 
     await expect(page).toHaveURL(/\/student\/dashboard$/);
     await expect(
-      page.getByRole("heading", { level: 2, name: "Due quizzes" }),
+      page.getByRole("heading", { level: 1, name: "Dashboard" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("note", { name: "Preview mode" }),
     ).toBeVisible();
   });
 });

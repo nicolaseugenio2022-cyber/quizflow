@@ -1,23 +1,22 @@
-import { QrCode } from "lucide-react";
 import type { Metadata } from "next";
 
-import { EmptyState } from "@/components/empty-state";
-import { PageHeader, Panel } from "@/components/layout/page-header";
+import { PreviewScreen } from "@/components/preview/preview-screen";
+import { getNavItem } from "@/navigation/app-nav";
 
 export const metadata: Metadata = { title: "Classes" };
 
+const PLANNED = [
+  "Classes you are enrolled in",
+  "Join a class by scanning your teacher’s QR code",
+  "Class details and assigned quizzes",
+] as const;
+
 export default function StudentClassesPage() {
   return (
-    <div className="grid gap-8">
-      <PageHeader
-        title="Classes"
-        description="Classes you are enrolled in and their quizzes."
-      />
-      <Panel title="Your classes">
-        <EmptyState icon={QrCode} title="Not in a class yet">
-          Scan the QR code your teacher shows to join their class.
-        </EmptyState>
-      </Panel>
-    </div>
+    <PreviewScreen
+      item={getNavItem("STUDENT", "classes")}
+      planned={PLANNED}
+      milestone="Phase 2: Classes"
+    />
   );
 }
